@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+
+    tools {
+        maven "maven-3.9.14"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'dev', url: 'https://github.com/Rammajjari/maven-webapplication-project-kkfunda.git'
+            }
+        }
+
+        stage('maven and sonar') {
+            parallel {
+                stage('Build') {
+                    steps {
+                        sh "mvn clean package"
+                    }
+                }
+                stage('Sonar') {
+                    steps {
+                        sh "mvn sonar:sonar"
+                    }
+                }
+            }
+        }
+      
+        stage('Deployments') {
+            parallel {
+
+                stage('Nexus Build') {
+                    steps {
+                        sh "mvn deploy"
+                    }
+                }
+
+                stage('Tomcat Deployment') {
+                    steps {
+                        withCredentials([usernamePassword(
+                            credentialsId: 'tomcat-cread-1',
+                            usernameVariable: 'USER',
+                            passwordVariable: 'PASS'
+                        )]) {
+                            sh '''
+                            curl -u $USER:$PASS \
+                            --upload-file /var/lib/jenkins/workspace/First-job-PL/target/maven-web-application.war \
+                            "http://13.127.110.61:8080/manager/text/deploy?path=/maven-web-application&update=true"
+                            '''
+                        }
+                    }
+                }
+
+            }
+        }
+    } //staging ending
+} //pipeline ending
